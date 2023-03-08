@@ -1,0 +1,47 @@
+
+
+Trigger:
+
+trigger PublishToGitHub on SalesforceObject__c (after insert) {
+    // Get the list of Ids of the records that have been inserted
+    List<Id> recordIds = Trigger.newMap.keySet();
+
+    // Get the list of the records
+    List<SalesforceObject__c> records = [SELECT Id, Name, Repo_Name__c, Code_Data__c FROM SalesforceObject__c WHERE Id IN :recordIds];
+
+    // Create a list to hold the results of the API calls
+    List<String> results = new List<String>();
+
+    // For each record in the list
+    for(SalesforceObject__c record : records) {
+        // Create a new organization if it does not exist
+        // Call the API and add the result to the list
+        results.add(GithubUtils.createOrganization(record.Name));
+
+        // Create a new repository with the given repo name
+        // Call the API and add the result to the list
+        results.add(GithubUtils.createRepository(record.Repo_Name__c));
+
+        // Deploy the generated code to the requested repository
+        // Call the API and add the result to the list
+        results.add(GithubUtils.deployCode(record.Code_Data__c, record.Repo_Name__c));
+    }
+
+    // If all API calls were successful
+    if(!results.contains('failed')) {
+        // Update the request status and link in the Java API
+        // Call the API
+        String response = GithubUtils.updateStatusAndLink(recordIds);
+
+        // If the response is successful
+        if(response == 'success') {
+            // Update the request data, indicating that the code has been successfully published
+            for(SalesforceObject__c record : records) {
+                record.Status__c = 'Published';
+            }
+
+            // Update the records
+            update records;
+        }
+    }
+}
